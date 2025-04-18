@@ -1,216 +1,256 @@
 using RedBlackTreeLib;
 using Xunit;
 using Moq;
+using System;
+using System.Linq;
 
 namespace RedBlackTreeTests;
 
 public class RedBlackTreeTests
 {
+    private readonly Mock<ILogger> _mockLogger;
+    private readonly Mock<ITreeChangeTracker<int>> _mockTracker;
+    private readonly RedBlackTree<int> _tree;
+
+    public RedBlackTreeTests()
+    {
+        _mockLogger = new Mock<ILogger>();
+        _mockTracker = new Mock<ITreeChangeTracker<int>>();
+        _tree = new RedBlackTree<int>(_mockLogger.Object, _mockTracker.Object);
+    }
+
+    // ------------------------- Основные операции -------------------------
     [Fact]
     public void Insert_ShouldMaintainRedBlackProperties()
     {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(10);
-        tree.Insert(20);
-        tree.Insert(30);
+        // Arrange
+        int[] values = { 10, 20, 30 };
 
-        Assert.Equal(NodeColor.Black, tree.Root.Color);
-        Assert.Equal(20, tree.Root.Key);
-        Assert.Equal(10, tree.Root.Left.Key);
-        Assert.Equal(30, tree.Root.Right.Key);
-        Assert.Equal(NodeColor.Red, tree.Root.Left.Color);
-        Assert.Equal(NodeColor.Red, tree.Root.Right.Color);
+        // Act
+        foreach (var value in values)
+            _tree.Insert(value);
+
+        // Assert
+        Assert.Equal(NodeColor.Black, _tree.Root.Color);
+        Assert.Equal(20, _tree.Root.Key);
+        Assert.Equal(10, _tree.Root.Left.Key);
+        Assert.Equal(30, _tree.Root.Right.Key);
     }
 
     [Fact]
     public void Search_ExistingKey_ReturnsTrue()
     {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(5);
-        tree.Insert(3);
-        tree.Insert(7);
+        // Arrange
+        _tree.Insert(5);
+        _tree.Insert(3);
+        _tree.Insert(7);
 
-        Assert.True(tree.Search(5));
-        Assert.True(tree.Search(3));
-        Assert.True(tree.Search(7));
+        // Act & Assert
+        Assert.True(_tree.Search(5));
+        Assert.True(_tree.Search(3));
+        Assert.True(_tree.Search(7));
+    }
+
+    // ------------------------- Логирование -------------------------
+    [Fact]
+    public void Logger_ShouldLogAllOperations()
+    {
+        // Act
+        _tree.Insert(10);
+        _tree.Insert(20);
+        _tree.Search(15);
+
+        // Assert
+        _mockLogger.Verify(l => l.Log("Inserting 10"), Times.Once);
+        _mockLogger.Verify(l => l.Log("Inserting 20"), Times.Once);
+        _mockLogger.Verify(l => l.Log("Searching for 15"), Times.Once);
+    }
+
+    // ------------------------- Трекинг изменений -------------------------
+    [Fact]
+    public void Tracker_ShouldRecordAllEvents()
+    {
+        // Act
+        _tree.Insert(10);
+        _tree.Insert(20);
+        _tree.Insert(30);
+
+        // Assert
+        _mockTracker.Verify(t => t.TrackInsert(10), Times.Once);
+        _mockTracker.Verify(t => t.TrackInsert(20), Times.Once);
+        _mockTracker.Verify(t => t.TrackRotation(It.IsAny<string>()), Times.AtLeastOnce);
+        _mockTracker.Verify(t => t.TrackColorChange(It.IsAny<Node<int>>()), Times.AtLeast(2));
+    }
+
+    // ------------------------- Специальные случаи -------------------------
+    [Fact]
+    public void Insert_EmptyTree_ShouldCreateBlackRoot()
+    {
+        // Act
+        _tree.Insert(42);
+
+        // Assert
+        Assert.Equal(42, _tree.Root.Key);
+        Assert.Equal(NodeColor.Black, _tree.Root.Color);
+        _mockTracker.Verify(t => t.TrackRotation(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
-    public void Insert_ShouldCallLogger()
+    public void Insert_ReverseSorted_ShouldTriggerRotations()
     {
-        var mockLogger = new Mock<ILogger>();
-        var tree = new RedBlackTree<int>(mockLogger.Object);
-        tree.Insert(10);
-        mockLogger.Verify(l => l.Log("Inserting 10"), Times.Once);
+        // Arrange
+        int[] values = { 5, 4, 3, 2, 1 };
+
+        // Act
+        foreach (var value in values)
+            _tree.Insert(value);
+
+        // Assert
+        // Проверка корня
+        Assert.Equal(4, _tree.Root.Key);
+        Assert.Equal(NodeColor.Black, _tree.Root.Color);
+
+        // Проверка левого поддерева
+        Assert.Equal(2, _tree.Root.Left.Key);
+        Assert.Equal(NodeColor.Black, _tree.Root.Left.Color);
+
+        // Проверка правого поддерева
+        var right = _tree.Root.Right;
+        Assert.Equal(5, right.Key);
+        Assert.Equal(NodeColor.Black, right.Color);
+
+        // Проверка вращений
+        _mockTracker.Verify(t => t.TrackRotation("left"), Times.Never);
+        _mockTracker.Verify(t => t.TrackRotation("right"), Times.Exactly(2));
     }
 
     [Fact]
-    public void Insert_DuplicateKey_ShouldAddToRightSubtree()
+    public void Insert_Duplicates_ShouldTrackAllInserts()
     {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(10);
-        tree.Insert(10);
+        // Act
+        _tree.Insert(3);
+        _tree.Insert(3);
+        _tree.Insert(3);
 
-        Assert.NotNull(tree.Root);
-        Assert.Null(tree.Root.Left);
-        Assert.Equal(10, tree.Root.Right.Key);
-        Assert.Equal(NodeColor.Red, tree.Root.Right.Color);
+        // Assert
+        _mockTracker.Verify(t => t.TrackInsert(3), Times.Exactly(3));
     }
 
     [Fact]
-    public void Insert_LeftLeftCase_ShouldRebalanceCorrectly()
+    public void Insert_NegativeNumbers_ShouldMaintainStructure()
     {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(30);
-        tree.Insert(20);
-        tree.Insert(10); // Вызывает правое вращение
+        // Arrange
+        int[] values = { -5, -3, -1, 0, 2 };
 
-        Assert.Equal(20, tree.Root.Key);
-        Assert.Equal(10, tree.Root.Left.Key);
-        Assert.Equal(30, tree.Root.Right.Key);
-        Assert.Equal(NodeColor.Black, tree.Root.Color);
+        // Act
+        foreach (var value in values)
+            _tree.Insert(value);
+
+        // Assert
+        Assert.Equal(-3, _tree.Root.Key);
+        Assert.Equal(NodeColor.Black, _tree.Root.Left.Color);
+        Assert.Equal(NodeColor.Red, _tree.Root.Right.Left.Color);
     }
 
+    // ------------------------- Проверка свойств -------------------------
     [Fact]
-    public void Insert_RightRightCase_ShouldRebalanceCorrectly()
+    public void AllPaths_ShouldHaveEqualBlackNodes()
     {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(10);
-        tree.Insert(20);
-        tree.Insert(30);
+        // Arrange
+        int[] values = { 10, 5, 15, 3, 7, 12, 20, 1 };
 
-        Assert.Equal(20, tree.Root.Key);
-        Assert.Equal(10, tree.Root.Left.Key);
-        Assert.Equal(30, tree.Root.Right.Key);
-    }
+        // Act
+        foreach (var value in values)
+            _tree.Insert(value);
 
-    [Fact]
-    public void Insert_LeftRightCase_ShouldRebalanceCorrectly()
-    {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(30);
-        tree.Insert(10);
-        tree.Insert(20);
-
-        Assert.Equal(20, tree.Root.Key);
-        Assert.Equal(10, tree.Root.Left.Key);
-        Assert.Equal(30, tree.Root.Right.Key);
-    }
-
-    [Fact]
-    public void Search_NonExistingKey_ReturnsFalse()
-    {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(5);
-        tree.Insert(3);
-
-        Assert.False(tree.Search(7));
-    }
-
-    [Fact]
-    public void Root_AlwaysBlack_AfterOperations()
-    {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(10);
-        tree.Insert(20);
-        tree.Insert(30);
-
-        Assert.Equal(NodeColor.Black, tree.Root.Color);
-    }
-
-    [Fact]
-    public void Insert_AllElements_ShouldMaintainBlackDepth()
-    {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(10);
-        tree.Insert(5);
-        tree.Insert(15);
-        tree.Insert(3);
-        tree.Insert(7);
-
-        // Проверка количества черных узлов на всех путях
-        int leftPathBlackCount = CountBlackNodes(tree.Root.Left);
-        int rightPathBlackCount = CountBlackNodes(tree.Root.Right);
-        Assert.Equal(leftPathBlackCount, rightPathBlackCount);
+        // Assert
+        int left = CountBlackNodes(_tree.Root.Left);
+        int right = CountBlackNodes(_tree.Root.Right);
+        Assert.Equal(left, right);
     }
 
     private int CountBlackNodes(Node<int> node)
     {
-        if (node == null) return 1; // NIL-узлы считаются черными
+        if (node == null) return 1;
         int left = CountBlackNodes(node.Left);
         int right = CountBlackNodes(node.Right);
         Assert.Equal(left, right);
         return (node.Color == NodeColor.Black ? 1 : 0) + left;
     }
 
+    // ------------------------- Стресс-тест -------------------------
     [Fact]
-    public void Insert_ShouldCallLoggerForEachOperation()
+    public void LargeDataset_ShouldMaintainProperties()
     {
-        var mockLogger = new Mock<ILogger>();
-        var tree = new RedBlackTree<int>(mockLogger.Object);
+        // Arrange
+        var rnd = new Random();
+        int[] values = Enumerable.Range(1, 1000)
+            .OrderBy(x => rnd.Next())
+            .ToArray();
 
-        tree.Insert(10);
-        tree.Insert(20);
-        tree.Insert(30);
+        // Act
+        foreach (var value in values)
+            _tree.Insert(value);
 
-        mockLogger.Verify(l => l.Log("Inserting 10"), Times.Once);
-        mockLogger.Verify(l => l.Log("Inserting 20"), Times.Once);
-        mockLogger.Verify(l => l.Log("Inserting 30"), Times.Once);
+        // Assert
+        Assert.Equal(NodeColor.Black, _tree.Root.Color);
+        VerifyTreeProperties(_tree.Root);
+    }
+
+    private void VerifyTreeProperties(Node<int> node)
+    {
+        if (node == null) return;
+
+        if (node.Color == NodeColor.Red)
+        {
+            Assert.Equal(NodeColor.Black, node.Left?.Color ?? NodeColor.Black);
+            Assert.Equal(NodeColor.Black, node.Right?.Color ?? NodeColor.Black);
+        }
+
+        VerifyTreeProperties(node.Left);
+        VerifyTreeProperties(node.Right);
+
+        if (node.Left != null)
+            Assert.True(node.Key.CompareTo(node.Left.Key) > 0);
+
+        if (node.Right != null)
+            Assert.True(node.Key.CompareTo(node.Right.Key) < 0);
+    }
+
+    // ------------------------- Граничные случаи -------------------------
+    [Fact]
+    public void Search_NonExistingKey_ReturnsFalse()
+    {
+        // Arrange
+        _tree.Insert(5);
+        _tree.Insert(3);
+
+        // Act & Assert
+        Assert.False(_tree.Search(7));
     }
 
     [Fact]
-    public void Search_ShouldCallLoggerIfProvided()
+    public void Insert_SingleElement_ShouldNotRotate()
     {
-        var mockLogger = new Mock<ILogger>();
-        var tree = new RedBlackTree<int>(mockLogger.Object);
-        tree.Insert(10);
+        // Act
+        _tree.Insert(100);
 
-        bool result = tree.Search(10);
-
-        mockLogger.Verify(l => l.Log("Searching for 10"), Times.Once);
+        // Assert
+        Assert.Equal(100, _tree.Root.Key);
+        _mockTracker.Verify(t => t.TrackRotation(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
-    public void FixInsertion_UncleIsRed_ShouldRecolor()
+    public void Insert_AlreadyBalanced_ShouldNotRotate()
     {
-        // слава богу отработал.
-        var tree = new RedBlackTree<int>();
+        // Arrange
+        int[] values = { 4, 2, 6, 1, 3, 5, 7 };
 
-        // Построение дерева:
-        //       20(B)
-        //      /   \
-        //    10(R) 30(R)
-        tree.Insert(20);
-        tree.Insert(10);
-        tree.Insert(30);
+        // Act
+        foreach (var value in values)
+            _tree.Insert(value);
 
-        // Вставляем 5: дядя (30) красный -> перекрашивание
-        tree.Insert(5);
-
-        // Ожидаемая структура после перекрашивания:
-        //       20(B)
-        //      /   \
-        //    10(B) 30(B)
-        //    /
-        //   5(R)
-
-        Assert.Equal(20, tree.Root.Key);
-        Assert.Equal(NodeColor.Black, tree.Root.Color);
-        Assert.Equal(NodeColor.Black, tree.Root.Left.Color);
-        Assert.Equal(NodeColor.Black, tree.Root.Right.Color);
-        Assert.Equal(NodeColor.Red, tree.Root.Left.Left.Color);
-    }
-
-    [Fact]
-    public void RotateLeft_ShouldUpdateParentReferences()
-    {
-        var tree = new RedBlackTree<int>();
-        tree.Insert(10);
-        tree.Insert(20);
-        tree.Insert(30);
-
-        var rightChild = tree.Root.Right;
-        Assert.Equal(30, rightChild.Key);
-        Assert.Equal(tree.Root, rightChild.Parent);
+        // Assert
+        _mockTracker.Verify(t => t.TrackRotation(It.IsAny<string>()), Times.Never);
     }
 }

@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 namespace RedBlackTreeLib;
 
-public enum NodeColor { Red, Black }
+public enum NodeColor
+{ Red, Black }
 
 public class Node<T> where T : IComparable<T>
 {

@@ -218,3 +218,4 @@ C:\Users\Oleg\source\repos\RedBlackTreeSolution\RedBlackTreeTest\obj\Debug\net8.
 C:\Users\Oleg\source\repos\RedBlackTreeSolution\RedBlackTreeTest\obj\Debug\net8.0\RedBlackTreeTest.pdb
 C:\Users\Oleg\source\repos\RedBlackTreeSolution\RedBlackTreeTest\obj\Debug\net8.0\RedBlackTreeTest.genruntimeconfig.cache
 C:\Users\Oleg\source\repos\RedBlackTreeSolution\RedBlackTreeTest\obj\Debug\net8.0\ref\RedBlackTreeTest.dll
+C:\Users\Oleg\source\repos\RedBlackTreeSolution\RedBlackTreeTest\obj\Debug\net8.0\RedBlackTreeTest.sourcelink.json

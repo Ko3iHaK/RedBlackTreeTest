@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RedBlackTreeTest")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e63833273400fcca83f774820dcfb1c00b14adea")]
 [assembly: System.Reflection.AssemblyProductAttribute("RedBlackTreeTest")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RedBlackTreeTest")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
